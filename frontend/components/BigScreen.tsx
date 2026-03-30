@@ -247,7 +247,13 @@ const BigScreen: React.FC<Props> = ({ onSwitchMode }) => {
             </div>
           </div>
 
-{/* 后台入口已移除 */}
+          <button
+            onClick={onSwitchMode}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white rounded shadow-lg shadow-cyan-500/20 text-xs font-bold transition-all"
+          >
+            <Settings className="w-4 h-4" />
+            管理后台
+          </button>
         </div>
       </header>
 

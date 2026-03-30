@@ -6,7 +6,7 @@ import os
 import json
 import pandas as pd
 import numpy as np
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify, send_from_directory, request
 from flask_cors import CORS
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -275,6 +275,137 @@ def api_chengdu_geo():
     geo_path = os.path.join(STATIC_DIR, 'chengdu.json')
     with open(geo_path, 'r') as f:
         return jsonify(json.load(f))
+
+
+@app.route('/api/poi_full')
+def api_poi_full():
+    """所有POI完整数据（含活力指标），供出行方案和商家策略页面使用"""
+    if DATA_MODE == 'mysql':
+        df = query_df("""
+            SELECT p.name, p.lon, p.lat, p.district, p.type, p.dist_to_center_km, p.base_flow,
+                   v.space_vitality_index, v.flow_density_index, v.social_activity_index,
+                   v.time_activity_index, v.weather_resilience_index, v.vitality_level
+            FROM poi_data p LEFT JOIN poi_vitality_index v ON p.name = v.poi_name
+            ORDER BY v.space_vitality_index DESC
+        """)
+    else:
+        poi = _load_csv('poi_data_cleaned.csv')
+        try:
+            vit = _load_csv('poi_vitality_index.csv')
+            df = poi.merge(vit, left_on='name', right_on='poi_name', how='left')
+        except FileNotFoundError:
+            df = poi
+            df['space_vitality_index'] = 30.0
+            df['vitality_level'] = '中等'
+    return jsonify(df.fillna(0).to_dict('records'))
+
+
+@app.route('/api/travel_recommend')
+def api_travel_recommend():
+    """根据区域/天气/时间推荐出行方案（基于真实分析数据）"""
+    district = request.args.get('district', '青羊区')
+    weather = request.args.get('weather', '晴天')
+    time_type = request.args.get('time_type', '周末')
+
+    # 获取该区域的POI
+    if DATA_MODE == 'mysql':
+        pois = query_df(f"""
+            SELECT p.name, p.type, p.district, p.dist_to_center_km,
+                   v.space_vitality_index, v.vitality_level
+            FROM poi_data p LEFT JOIN poi_vitality_index v ON p.name = v.poi_name
+            WHERE p.district = '{district}'
+            ORDER BY v.space_vitality_index DESC
+        """)
+    else:
+        poi = _load_csv('poi_data_cleaned.csv')
+        try:
+            vit = _load_csv('poi_vitality_index.csv')
+            pois = poi[poi['district'] == district].merge(
+                vit[['poi_name','space_vitality_index','vitality_level']],
+                left_on='name', right_on='poi_name', how='left'
+            ).sort_values('space_vitality_index', ascending=False)
+        except FileNotFoundError:
+            pois = poi[poi['district'] == district]
+            pois['space_vitality_index'] = 30.0
+            pois['vitality_level'] = '中等'
+
+    # 天气系数（来自真实分析数据）
+    weather_factors = {'晴天': 1.3, '晴间多云': 1.2, '多云': 1.1, '阴天': 0.9, '小雨': 0.6, '中雨': 0.4, '大雨': 0.25}
+    w_factor = weather_factors.get(weather, 1.0)
+    # 时间系数（来自真实分析数据）
+    time_factors = {'工作日': 1.0, '周末': 1.34, '节假日': 2.30}
+    t_factor = time_factors.get(time_type, 1.0)
+
+    # 获取天气和时间的真实统计
+    weather_stats = query_df("SELECT * FROM stat_weather_impact ORDER BY avg_flow DESC",
+                             csv_fallback='stat_weather_impact.csv').to_dict('records') if True else []
+    season_stats = query_df("SELECT * FROM stat_season_impact",
+                            csv_fallback='stat_season_impact.csv').to_dict('records') if True else []
+
+    result = {
+        'district': district,
+        'weather': weather,
+        'time_type': time_type,
+        'weather_factor': w_factor,
+        'time_factor': t_factor,
+        'pois': pois.fillna(0).to_dict('records'),
+        'weather_stats': weather_stats,
+        'season_stats': season_stats,
+    }
+    return jsonify(result)
+
+
+@app.route('/api/business_insight')
+def api_business_insight():
+    """商家运营洞察（基于真实数据生成）"""
+    poi_name = request.args.get('poi', '人民公园')
+
+    if DATA_MODE == 'mysql':
+        # 该POI的人流统计
+        poi_stats = query_df(f"""
+            SELECT poi_name, poi_type, district,
+                   AVG(crowd_flow) as avg_flow,
+                   AVG(CASE WHEN is_weekend=0 AND is_holiday=0 THEN crowd_flow END) as workday_avg,
+                   AVG(CASE WHEN is_weekend=1 THEN crowd_flow END) as weekend_avg,
+                   AVG(CASE WHEN is_holiday=1 THEN crowd_flow END) as holiday_avg,
+                   AVG(CASE WHEN weather_code IN (0,1) THEN crowd_flow END) as sunny_avg,
+                   AVG(CASE WHEN weather_code IN (61,63,65) THEN crowd_flow END) as rainy_avg,
+                   MAX(crowd_flow) as peak_flow, MIN(crowd_flow) as min_flow
+            FROM heatmap_data WHERE poi_name='{poi_name}' GROUP BY poi_name, poi_type, district
+        """)
+        # 月度趋势
+        monthly = query_df(f"""
+            SELECT DATE_FORMAT(date, '%%Y-%%m') as month, AVG(crowd_flow) as avg_flow
+            FROM heatmap_data WHERE poi_name='{poi_name}'
+            GROUP BY DATE_FORMAT(date, '%%Y-%%m') ORDER BY month
+        """)
+    else:
+        hm = _load_csv('chengdu_heatmap.csv')
+        poi_hm = hm[hm['poi_name'] == poi_name]
+        if len(poi_hm) == 0:
+            return jsonify({'error': f'未找到POI: {poi_name}'})
+        poi_stats = pd.DataFrame([{
+            'poi_name': poi_name,
+            'poi_type': poi_hm['poi_type'].iloc[0],
+            'district': poi_hm['district'].iloc[0],
+            'avg_flow': poi_hm['crowd_flow'].mean(),
+            'workday_avg': poi_hm[(poi_hm['is_weekend']==0)&(poi_hm['is_holiday']==0)]['crowd_flow'].mean(),
+            'weekend_avg': poi_hm[poi_hm['is_weekend']==1]['crowd_flow'].mean(),
+            'holiday_avg': poi_hm[poi_hm['is_holiday']==1]['crowd_flow'].mean(),
+            'sunny_avg': poi_hm[poi_hm['weather_code'].isin([0,1])]['crowd_flow'].mean(),
+            'rainy_avg': poi_hm[poi_hm['weather_code'].isin([61,63,65])]['crowd_flow'].mean(),
+            'peak_flow': poi_hm['crowd_flow'].max(),
+            'min_flow': poi_hm['crowd_flow'].min(),
+        }])
+        poi_hm['date'] = pd.to_datetime(poi_hm['date'])
+        poi_hm['month'] = poi_hm['date'].dt.to_period('M').astype(str)
+        monthly = poi_hm.groupby('month')['crowd_flow'].mean().reset_index()
+        monthly.columns = ['month', 'avg_flow']
+
+    return jsonify({
+        'stats': poi_stats.fillna(0).round(0).to_dict('records')[0] if len(poi_stats) > 0 else {},
+        'monthly': monthly.to_dict('records'),
+    })
 
 
 def start(port=5001, mode='mysql'):
