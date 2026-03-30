@@ -1,0 +1,5 @@
+{
+  "name": "成都城市公共休闲空间活力分析系统",
+  "description": "面向成都市8区58个公共休闲空间的活力分析大屏，提供人流热力图、XGBoost/LightGBM/LSTM/ARIMA建模对比、特征重要性、天气影响等多维度数据洞察。",
+  "requestFramePermissions": []
+}

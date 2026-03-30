@@ -1,0 +1,222 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>成都城市公共休闲空间活力分析系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Noto Sans SC', sans-serif;
+        background-color: #020617; /* slate-950 */
+        color: #e2e8f0;
+        overflow: hidden;
+        transition: background-color 0.3s ease, color 0.3s ease;
+      }
+
+      /* =========================================
+         GLOBAL INPUT VISIBILITY OVERRIDE
+         ========================================= */
+      /* Force all inputs to have pure black text and medium weight for readability */
+      input, textarea, select {
+        color: #000000 !important;
+        font-weight: 500 !important;
+      }
+      
+      /* Keep placeholders grey */
+      input::placeholder, textarea::placeholder {
+        color: #a8abb2 !important;
+        font-weight: 400 !important;
+        opacity: 1; /* Firefox fix */
+      }
+
+      /* =========================================
+         ADMIN MODE OVERRIDES (Element Plus Style)
+         ========================================= */
+      
+      /* 1. Global Light Theme for Admin */
+      body.admin-mode {
+        background-color: #f5f7fa !important;
+        color: #303133 !important; /* Main Text Color */
+        overflow: auto !important; /* Enable scrolling */
+      }
+
+      /* 2. Scrollbar Styling for Admin (Light Grey) */
+      body.admin-mode ::-webkit-scrollbar-track {
+        background: #f1f5f9;
+      }
+      body.admin-mode ::-webkit-scrollbar-thumb {
+        background: #c0c4cc;
+        border-radius: 4px;
+      }
+      body.admin-mode ::-webkit-scrollbar-thumb:hover {
+        background: #909399;
+      }
+
+      /* 3. Input / Select / Textarea (Force White bg & Grey Border) */
+      body.admin-mode input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+      body.admin-mode select,
+      body.admin-mode textarea {
+        background-color: #ffffff !important;
+        border: 1px solid #dcdfe6 !important;
+        color: #000000 !important; /* Force Black */
+        font-weight: 500 !important; /* Force Medium Weight */
+        border-radius: 4px !important;
+        transition: border-color 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
+      }
+
+      body.admin-mode input:focus, 
+      body.admin-mode select:focus, 
+      body.admin-mode textarea:focus {
+        border-color: #409EFF !important;
+        outline: none !important;
+        box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2) !important;
+      }
+
+      body.admin-mode input::placeholder {
+        color: #a8abb2 !important;
+      }
+
+      /* 4. Tables (White bg, Grey Header) */
+      body.admin-mode table {
+        background-color: #ffffff !important;
+      }
+      body.admin-mode thead th {
+        background-color: #f5f7fa !important;
+        color: #909399 !important;
+        font-weight: 600 !important;
+        border-bottom: 1px solid #ebeef5 !important;
+      }
+      body.admin-mode tbody td {
+        border-bottom: 1px solid #ebeef5 !important;
+        color: #606266 !important;
+      }
+      body.admin-mode tbody tr:hover td {
+        background-color: #f5f7fa !important;
+      }
+
+      /* 5. Dialogs / Cards (Force White) */
+      body.admin-mode .bg-white {
+        background-color: #ffffff !important;
+        color: #303133 !important;
+      }
+      
+      /* 6. Typography Fixes */
+      body.admin-mode h1, 
+      body.admin-mode h2, 
+      body.admin-mode h3, 
+      body.admin-mode h4, 
+      body.admin-mode label {
+        color: #303133 !important;
+      }
+
+
+      /* =========================================
+         ORIGINAL DARK MODE STYLES (Big Screen)
+         ========================================= */
+      .font-mono {
+        font-family: 'JetBrains Mono', monospace;
+      }
+      /* Custom Scrollbar (Dark Default) */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #0f172a; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #1e293b; 
+        border-radius: 3px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #334155; 
+      }
+      .tech-border {
+        position: relative;
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(56, 189, 248, 0.1);
+        backdrop-filter: blur(10px);
+      }
+      .tech-border::before {
+        content: '';
+        position: absolute;
+        top: -1px; left: -1px;
+        width: 10px; height: 10px;
+        border-top: 2px solid #06b6d4;
+        border-left: 2px solid #06b6d4;
+      }
+      .tech-border::after {
+        content: '';
+        position: absolute;
+        bottom: -1px; right: -1px;
+        width: 10px; height: 10px;
+        border-bottom: 2px solid #06b6d4;
+        border-right: 2px solid #06b6d4;
+      }
+      .grid-bg {
+        background-image: 
+          linear-gradient(rgba(6, 182, 212, 0.05) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(6, 182, 212, 0.05) 1px, transparent 1px);
+        background-size: 30px 30px;
+      }
+
+      /* 3D Flip Utilities */
+      .perspective-1000 {
+        perspective: 1000px;
+      }
+      .transform-style-3d {
+        transform-style: preserve-3d;
+      }
+      .backface-hidden {
+        backface-visibility: hidden;
+      }
+      .rotate-y-180 {
+        transform: rotateY(180deg);
+      }
+
+      /* PRINT STYLES */
+      @media print {
+        body * {
+          visibility: hidden;
+        }
+        #report-paper, #report-paper * {
+          visibility: visible;
+        }
+        #report-paper {
+          position: fixed;
+          left: 0;
+          top: 0;
+          width: 100%;
+          margin: 0;
+          padding: 20px;
+          box-shadow: none !important;
+          background: white !important;
+        }
+        /* Hide ECharts when printing raw if they don't render well, but canvas usually prints fine */
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.4",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
+    "recharts": "https://esm.sh/recharts@^3.7.0",
+    "echarts": "https://esm.sh/echarts@5.6.0",
+    "echarts-wordcloud": "https://esm.sh/echarts-wordcloud@2.1.0",
+    "html2canvas": "https://esm.sh/html2canvas@1.4.1",
+    "jspdf": "https://esm.sh/jspdf@2.5.1"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
