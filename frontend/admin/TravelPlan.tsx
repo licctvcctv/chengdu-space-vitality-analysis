@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, Sun, Cloud, Umbrella, Calendar, Clock, Star, ThumbsUp, AlertTriangle, Sparkles, RefreshCw } from 'lucide-react';
+import { MapPin, Sun, Cloud, Umbrella, Calendar, Clock, Star, ThumbsUp, AlertTriangle, Sparkles, RefreshCw, TrendingUp } from 'lucide-react';
 
 const DISTRICTS = ['锦江区','青羊区','武侯区','成华区','金牛区','双流区','龙泉驿区','温江区'];
 const WEATHERS = ['晴天','晴间多云','多云','阴天','小雨','中雨','大雨'];
@@ -22,7 +22,9 @@ const TravelPlan: React.FC = () => {
   const [weather, setWeather] = useState('晴天');
   const [timeType, setTimeType] = useState('周末');
   const [plan, setPlan] = useState<PlanResult | null>(null);
+  const [temperature, setTemperature] = useState(20);
   const [loading, setLoading] = useState(false);
+  const [predictRanking, setPredictRanking] = useState<any[]>([]);
 
   // 方案评判
   const [evalInput, setEvalInput] = useState('');
@@ -37,9 +39,13 @@ const TravelPlan: React.FC = () => {
   const generatePlan = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/travel_recommend?district=${encodeURIComponent(district)}&weather=${encodeURIComponent(weather)}&time_type=${encodeURIComponent(timeType)}`);
-      const data = await res.json();
-      setPlan(data);
+      const [res1, res2] = await Promise.all([
+        fetch(`/api/travel_recommend?district=${encodeURIComponent(district)}&weather=${encodeURIComponent(weather)}&time_type=${encodeURIComponent(timeType)}`),
+        fetch(`/api/predict_vitality?weather=${encodeURIComponent(weather)}&time_type=${encodeURIComponent(timeType)}&temperature=${temperature}&district=${encodeURIComponent(district)}`)
+      ]);
+      const [data1, data2] = await Promise.all([res1.json(), res2.json()]);
+      setPlan(data1);
+      setPredictRanking(data2.rankings || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -101,7 +107,7 @@ const TravelPlan: React.FC = () => {
         </h2>
         <p className="text-sm text-slate-500 mb-4">基于 58 个公共休闲空间的活力指数、790 天天气数据和人流热力分析，为您智能推荐最佳出行方案。</p>
 
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-4 gap-4 mb-6">
           <div>
             <label className="block text-sm font-medium text-slate-600 mb-2">选择区域</label>
             <select value={district} onChange={e => setDistrict(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2.5 text-sm">
@@ -113,6 +119,11 @@ const TravelPlan: React.FC = () => {
             <select value={weather} onChange={e => setWeather(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2.5 text-sm">
               {WEATHERS.map(w => <option key={w} value={w}>{w}</option>)}
             </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-2">温度 (°C)</label>
+            <input type="number" value={temperature} onChange={e => setTemperature(Number(e.target.value))}
+              className="w-full border border-slate-300 rounded-lg p-2.5 text-sm" min={-5} max={42} />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-600 mb-2">出行时间类型</label>
@@ -176,6 +187,39 @@ const TravelPlan: React.FC = () => {
               <div>最佳出行温度区间：15-25度（人流量峰值区间）</div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 预测活力排名 */}
+      {predictRanking.length > 0 && (
+        <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
+          <h3 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-green-500" /> 预测活力排名（{weather} · {timeType} · {temperature}°C）
+          </h3>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 border-b">
+                <th className="text-left px-3 py-2 text-slate-600">排名</th>
+                <th className="text-left px-3 py-2 text-slate-600">名称</th>
+                <th className="text-left px-3 py-2 text-slate-600">行政区</th>
+                <th className="text-left px-3 py-2 text-slate-600">类型</th>
+                <th className="text-left px-3 py-2 text-slate-600">预测人流</th>
+                <th className="text-left px-3 py-2 text-slate-600">拥挤提示</th>
+              </tr>
+            </thead>
+            <tbody>
+              {predictRanking.slice(0, 20).map((r: any, i: number) => (
+                <tr key={r.name} className="border-b border-slate-100 hover:bg-blue-50/50">
+                  <td className="px-3 py-2 text-slate-400">{i+1}</td>
+                  <td className="px-3 py-2 font-medium">{r.name}</td>
+                  <td className="px-3 py-2 text-slate-500">{r.district}</td>
+                  <td className="px-3 py-2"><span className={`px-1.5 py-0.5 rounded text-xs ${r.type==='景区'?'bg-red-100 text-red-600':r.type==='广场'?'bg-blue-100 text-blue-600':'bg-green-100 text-green-600'}`}>{r.type}</span></td>
+                  <td className="px-3 py-2 font-bold text-blue-600">{Math.round(r.predicted_flow).toLocaleString()}</td>
+                  <td className="px-3 py-2 text-xs">{r.crowd_tip}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 

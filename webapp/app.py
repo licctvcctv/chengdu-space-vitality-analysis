@@ -408,6 +408,82 @@ def api_business_insight():
     })
 
 
+@app.route('/api/space_list')
+def api_space_list():
+    """休闲空间列表（含活力数据），支持区域和类型筛选"""
+    district = request.args.get('district', '')
+    poi_type = request.args.get('type', '')
+    if DATA_MODE == 'mysql':
+        where = []
+        if district: where.append(f"p.district='{district}'")
+        if poi_type: where.append(f"p.type='{poi_type}'")
+        where_sql = ' WHERE ' + ' AND '.join(where) if where else ''
+        df = query_df(f"""
+            SELECT p.id, p.name, p.lon, p.lat, p.address, p.district, p.type,
+                   p.dist_to_center_km, p.base_flow,
+                   COALESCE(v.space_vitality_index, 0) as vitality,
+                   COALESCE(v.vitality_level, '未知') as level,
+                   COALESCE(v.flow_density_index, 0) as flow_density,
+                   COALESCE(v.social_activity_index, 0) as social_activity,
+                   COALESCE(v.time_activity_index, 0) as time_activity,
+                   COALESCE(v.weather_resilience_index, 0) as weather_resilience
+            FROM poi_data p LEFT JOIN poi_vitality_index v ON p.name = v.poi_name
+            {where_sql} ORDER BY vitality DESC
+        """)
+    else:
+        poi = _load_csv('poi_data_cleaned.csv')
+        try:
+            vit = _load_csv('poi_vitality_index.csv')
+            df = poi.merge(vit, left_on='name', right_on='poi_name', how='left')
+        except FileNotFoundError:
+            df = poi; df['space_vitality_index'] = 0
+        if district: df = df[df['district'] == district]
+        if poi_type: df = df[df['type'] == poi_type]
+        df = df.sort_values('space_vitality_index', ascending=False) if 'space_vitality_index' in df.columns else df
+    return jsonify(df.fillna(0).to_dict('records'))
+
+
+@app.route('/api/predict_vitality')
+def api_predict_vitality():
+    """根据条件预测活力排名（基于XGBoost模型的特征权重）"""
+    weather = request.args.get('weather', '晴天')
+    time_type = request.args.get('time_type', '周末')
+    temperature = float(request.args.get('temperature', '20'))
+    district = request.args.get('district', '')
+
+    # 天气系数
+    weather_map = {'晴天':1.3,'晴间多云':1.2,'多云':1.1,'阴天':0.9,'小雨':0.6,'中雨':0.4,'大雨':0.25}
+    w = weather_map.get(weather, 1.0)
+    # 时间系数
+    time_map = {'工作日':1.0,'周末':1.34,'节假日':2.30}
+    t = time_map.get(time_type, 1.0)
+    # 温度舒适度
+    comfort = 1.1 if 15<=temperature<=25 else (1.0 if 10<=temperature<=30 else 0.7)
+
+    # 获取所有POI基础人流
+    if DATA_MODE == 'mysql':
+        df = query_df("SELECT name, district, type, base_flow, dist_to_center_km FROM poi_data")
+    else:
+        df = _load_csv('poi_data_cleaned.csv')[['name','district','type','base_flow','dist_to_center_km']]
+
+    if district and district != '全部':
+        df = df[df['district'] == district]
+
+    df['predicted_flow'] = (df['base_flow'] * w * t * comfort).round(0).astype(int)
+    df = df.sort_values('predicted_flow', ascending=False)
+
+    # 拥挤提示
+    df['crowd_tip'] = df['predicted_flow'].apply(
+        lambda x: '人流极高，建议错峰' if x > 8000 else ('人流较高，注意安全' if x > 5000 else ('人流适中，适合休闲' if x > 2000 else '人流较少，体验舒适'))
+    )
+
+    return jsonify({
+        'weather': weather, 'time_type': time_type, 'temperature': temperature,
+        'weather_factor': w, 'time_factor': t, 'comfort_factor': comfort,
+        'rankings': df.to_dict('records')
+    })
+
+
 def start(port=5001, mode='mysql'):
     global DATA_MODE
     DATA_MODE = mode

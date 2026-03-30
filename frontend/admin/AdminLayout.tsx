@@ -19,6 +19,8 @@ import PersonalReports from './PersonalReports';
 import ResumeAnalysis from './ResumeAnalysis';
 import TravelPlan from './TravelPlan';
 import BusinessStrategy from './BusinessStrategy';
+import SpaceManagement from './SpaceManagement';
+import VitalityAnalysis from './VitalityAnalysis';
 import CrawlerConfig from './CrawlerConfig';
 import SystemLogs from './SystemLogs';
 import TopicDetail from './TopicDetail'; // New Import
@@ -121,6 +123,10 @@ const AdminLayout: React.FC<Props> = ({ onSwitchMode, userRole, onLogout }) => {
         return <TravelPlan />;
       case 'business-strategy':
         return <BusinessStrategy />;
+      case 'space-management':
+        return <SpaceManagement />;
+      case 'vitality-analysis':
+        return <VitalityAnalysis />;
       case 'personal-collections':
         return <UserCollections onViewDetail={handleNavigateToDetail} />;
       case 'personal-reports':

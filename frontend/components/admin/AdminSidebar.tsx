@@ -36,7 +36,9 @@ export type Page =
   | 'personal-profile'
   | 'travel-plan'
   | 'business-strategy'
-  | 'personal-reports';
+  | 'personal-reports'
+  | 'space-management'
+  | 'vitality-analysis';
 
 interface Props {
   activePage: Page | string;
@@ -95,6 +97,24 @@ const AdminSidebar: React.FC<Props> = ({ activePage, sidebarOpen, userRole, onNa
         >
           <MonitorPlay className="w-5 h-5 shrink-0" />
           {sidebarOpen && <span>空间活力大屏</span>}
+        </div>
+
+        {/* 休闲空间管理 + 活力分析 */}
+        <div
+          onClick={() => onNavigate('space-management' as Page)}
+          className={`relative flex items-center gap-3 px-4 py-3 text-sm transition-all duration-200 cursor-pointer ${activePage === 'space-management' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+          title="休闲空间信息管理"
+        >
+          <MapPin className="w-5 h-5 shrink-0" />
+          {sidebarOpen && <span>休闲空间管理</span>}
+        </div>
+        <div
+          onClick={() => onNavigate('vitality-analysis' as Page)}
+          className={`relative flex items-center gap-3 px-4 py-3 text-sm transition-all duration-200 cursor-pointer ${activePage === 'vitality-analysis' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+          title="活力分析展示"
+        >
+          <BarChart2 className="w-5 h-5 shrink-0" />
+          {sidebarOpen && <span>活力分析展示</span>}
         </div>
 
         {sidebarOpen && <div className="px-4 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider mt-4 mb-1">空间数据洞察</div>}

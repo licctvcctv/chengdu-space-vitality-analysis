@@ -26,6 +26,8 @@ const PAGE_LABEL_MAP: Record<Page, string> = {
   'personal-profile': '个人资料',
   'travel-plan': '市民出行方案生成',
   'business-strategy': '商家运营策略',
+  'space-management': '休闲空间信息管理',
+  'vitality-analysis': '活力分析展示',
   'personal-reports': '周报/月报中心'
 };
 
